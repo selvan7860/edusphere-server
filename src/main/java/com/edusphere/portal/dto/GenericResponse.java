@@ -36,6 +36,5 @@ public class GenericResponse {
         this.code = 200;
         this.message = "Success";
         this.success=true;
-
     }
 }
