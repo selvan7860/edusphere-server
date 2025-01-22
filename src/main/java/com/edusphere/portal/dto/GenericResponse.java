@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -17,6 +19,9 @@ public class GenericResponse {
     private  int code;
     private Object data;
     private Boolean success;
+    private List<CollegeDTO> colleges;
+    private List<String> locations;
+    private List<String> courses;
 
     public GenericResponse(boolean success,int code, String message) {
         this.code = code;
@@ -36,5 +41,11 @@ public class GenericResponse {
         this.code = 200;
         this.message = "Success";
         this.success=true;
+    }
+
+    public GenericResponse(List<CollegeDTO> colleges, List<String> locations, List<String> courses) {
+        this.colleges = colleges;
+        this.locations = locations;
+        this.courses = courses;
     }
 }
