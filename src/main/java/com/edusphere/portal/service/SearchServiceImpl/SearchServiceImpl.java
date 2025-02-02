@@ -28,6 +28,7 @@ public class SearchServiceImpl implements SearchService {
     @Override
     public CollegeSearchResponseDTO searchColleges(SearchDTO request) {
         GenericResponse response = client.searchColleges(request);
+        System.out.println(response);
         List<CollegeDTO> collegeDTOs = response.getColleges();
         List<String> locations = response.getLocations();
         List<String> courses = response.getCourses();

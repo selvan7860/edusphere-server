@@ -54,7 +54,7 @@
         "type": "text"
       },
       "courses": {
-        "type": "nested",
+        "type": "object",
         "properties": {
           "courseName": {
             "type": "keyword"

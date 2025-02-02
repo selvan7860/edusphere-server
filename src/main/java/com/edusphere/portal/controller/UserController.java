@@ -17,6 +17,7 @@ public class UserController {
         this.userService = userService;
     }
 
+
     @PostMapping
     public GenericResponse createUser(@RequestBody UserDTO userDTO){
         return new GenericResponse(userService.createUser(userDTO));

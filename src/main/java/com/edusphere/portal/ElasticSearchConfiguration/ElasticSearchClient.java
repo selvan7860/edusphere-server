@@ -5,18 +5,19 @@ import com.edusphere.portal.dto.CollegeDTO;
 import com.edusphere.portal.dto.CourseDTO;
 import com.edusphere.portal.dto.GenericResponse;
 import com.edusphere.portal.dto.SearchDTO;
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.elasticsearch.search.aggregations.bucket.global.ParsedGlobal;
+import org.elasticsearch.search.aggregations.bucket.nested.ParsedNested;
+import org.elasticsearch.search.aggregations.bucket.terms.ParsedTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,12 +27,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Component
 public class ElasticSearchClient {
 
+    private final RestHighLevelClient client;
+
     @Autowired
-    private RestHighLevelClient client;
+    public ElasticSearchClient(RestHighLevelClient client) {
+        this.client = client;
+    }
 
     public GenericResponse searchColleges(SearchDTO searchRequest) {
         List<CollegeDTO> collegeList = new ArrayList<>();
@@ -40,73 +46,115 @@ public class ElasticSearchClient {
 
         try {
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            if ((searchRequest.getQ() == null || searchRequest.getQ().isEmpty()) &&
-                    (searchRequest.getFilter() == null || searchRequest.getFilter().isEmpty())) {
-                sourceBuilder.query(QueryBuilders.matchAllQuery());
+            BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
+            if (searchRequest.getQ() != null && !searchRequest.getQ().isEmpty()) {
+                boolQuery.must(QueryBuilders.matchQuery("collegeName", searchRequest.getQ()));
             } else {
-                if (searchRequest.getQ() != null && !searchRequest.getQ().isEmpty()) {
-                    MatchQueryBuilder matchQuery = QueryBuilders.matchQuery("collegeName", searchRequest.getQ());
-                    sourceBuilder.query(matchQuery);
-                }
-                if (searchRequest.getFilter() != null && !searchRequest.getFilter().isEmpty()) {
-                    BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
-                    searchRequest.getFilter().forEach(filter -> {
-                        boolQuery.filter(QueryBuilders.termQuery(filter.getField(), filter.getValue()));
-                    });
-                    sourceBuilder.query(boolQuery);
-                }
+                sourceBuilder.query(QueryBuilders.matchAllQuery());
             }
-            AggregationBuilder locationAgg = AggregationBuilders.terms("locationAgg").field("collegeLocation.keyword");
-            AggregationBuilder courseAgg = AggregationBuilders.nested("coursesAgg", "courses")
-                    .subAggregation(AggregationBuilders.terms("courseNameAgg").field("courses.courseName"));
-            sourceBuilder.aggregation(locationAgg);
-            sourceBuilder.aggregation(courseAgg);
+
+            if (searchRequest.getFilter() != null && !searchRequest.getFilter().isEmpty()) {
+                searchRequest.getFilter().forEach(filter -> {
+                    String field = filter.getField();
+                    String value = filter.getValue();
+
+                    if (value == null || value.isEmpty()) {
+                        if ("courses.courseName".equals(field)) {
+                            boolQuery.filter(QueryBuilders.matchQuery("courses.courseName", ""));
+                        } else if ("collegeLocation".equals(field)) {
+                            boolQuery.filter(QueryBuilders.matchQuery("collegeLocation", ""));
+                        }
+                    } else {
+                        if ("courses.courseName".equals(field)) {
+                            boolQuery.filter(QueryBuilders.termQuery("courses.courseName", value));
+                        } else {
+                            boolQuery.filter(QueryBuilders.termQuery(field, value));
+                        }
+                    }
+                });
+            }
+
+            // Set the query for the source builder
+            if (boolQuery.hasClauses()) {
+                sourceBuilder.query(boolQuery);
+            }
+
+            // Aggregation for location and course names
+            sourceBuilder.aggregation(
+                    AggregationBuilders.global("global_agg")
+                            .subAggregation(AggregationBuilders.terms("locationAgg").field("collegeLocation"))
+                            .subAggregation(AggregationBuilders.terms("coursesAgg")
+                                    .field("courses.courseName"))
+            );
+
+            // Search request
             SearchRequest esRequest = new SearchRequest("colleges");
             esRequest.source(sourceBuilder);
             SearchResponse response = client.search(esRequest, RequestOptions.DEFAULT);
-            for (SearchHit hit : response.getHits()) {
-                CollegeDTO college = new CollegeDTO();
+
+            // Extracting the search results
+            for (SearchHit hit : response.getHits().getHits()) {
                 Map<String, Object> sourceMap = hit.getSourceAsMap();
-                college.setId(sourceMap.getOrDefault("id", "").toString());
-                college.setCollegeName(sourceMap.getOrDefault("collegeName", "").toString());
-                college.setCollegeCode(sourceMap.getOrDefault("collegeCode", "").toString());
-                college.setCollegeLocation(sourceMap.getOrDefault("collegeLocation", "").toString());
-                college.setCollegeEmail(sourceMap.getOrDefault("collegeEmail", "").toString());
-                college.setCollegePhone(sourceMap.getOrDefault("collegePhone", "").toString());
-                college.setCollegeWebSiteLink(sourceMap.getOrDefault("collegeWebSiteLink", "").toString());
-                college.setCollegeDescription(sourceMap.getOrDefault("collegeDescription", "").toString());
-                Object coursesObj = sourceMap.get("courses");
-                if (coursesObj instanceof List) {
-                    List<CourseDTO> courseList = new ArrayList<>();
-                    for (Object courseData : (List<?>) coursesObj) {
-                        if (courseData instanceof Map) {
-                            Map<?, ?> courseMap = (Map<?, ?>) courseData;
-                            CourseDTO course = new CourseDTO();
-                            course.setCourseName(courseMap.getOrDefault("courseName", null).toString());
-                            courseList.add(course);
-                        }
-                    }
-                    college.setCourses(courseList);
-                } else {
-                    college.setCourses(new ArrayList<>());
-                }
+                CollegeDTO college = mapCollegeDTO(sourceMap);
                 collegeList.add(college);
             }
+
+            // Extracting aggregations for locations and courses
             Aggregations aggregations = response.getAggregations();
-            Terms locationTerms = aggregations.get("locationAgg");
-            if (locationTerms != null) {
-                locationTerms.getBuckets().forEach(bucket -> locations.add(bucket.getKeyAsString()));
-            }
-            Nested courseNested = aggregations.get("coursesAgg");
-            if (courseNested != null) {
-                Terms courseTerms = courseNested.getAggregations().get("courseNameAgg");
-                if (courseTerms != null) {
-                    courseTerms.getBuckets().forEach(bucket -> courses.add(bucket.getKeyAsString()));
+            if (aggregations != null) {
+                ParsedGlobal globalAgg = aggregations.get("global_agg");
+                if (globalAgg != null) {
+                    Terms locationTerms = globalAgg.getAggregations().get("locationAgg");
+                    if (locationTerms != null) {
+                        locations.addAll(locationTerms.getBuckets().stream()
+                                .map(Terms.Bucket::getKeyAsString)
+                                .collect(Collectors.toList()));
+                    }
+
+                    Terms courseTerms = globalAgg.getAggregations().get("coursesAgg");
+                    if (courseTerms != null) {
+                        courses.addAll(courseTerms.getBuckets().stream()
+                                .map(Terms.Bucket::getKeyAsString)
+                                .collect(Collectors.toList()));
+                    }
                 }
             }
+
         } catch (IOException e) {
             throw new RuntimeException("Error during Elasticsearch query execution", e);
         }
+
         return new GenericResponse(collegeList, locations, courses);
+    }
+
+
+    private CollegeDTO mapCollegeDTO(Map<String, Object> sourceMap) {
+        CollegeDTO college = new CollegeDTO();
+        college.setId(String.valueOf(sourceMap.getOrDefault("id", "")));
+        college.setCollegeName(String.valueOf(sourceMap.getOrDefault("collegeName", "")));
+        college.setCollegeCode(String.valueOf(sourceMap.getOrDefault("collegeCode", "")));
+        college.setCollegeLocation(String.valueOf(sourceMap.getOrDefault("collegeLocation", "")));
+        college.setCollegeEmail(String.valueOf(sourceMap.getOrDefault("collegeEmail", "")));
+        college.setCollegePhone(String.valueOf(sourceMap.getOrDefault("collegePhone", "")));
+        college.setCollegeWebSiteLink(String.valueOf(sourceMap.getOrDefault("collegeWebSiteLink", "")));
+        college.setCollegeDescription(String.valueOf(sourceMap.getOrDefault("collegeDescription", "")));
+
+        Object coursesObj = sourceMap.get("courses");
+        if (coursesObj instanceof List<?>) {
+            List<CourseDTO> courseList = ((List<?>) coursesObj).stream()
+                    .filter(Map.class::isInstance)
+                    .map(courseData -> {
+                        Map<?, ?> courseMap = (Map<?, ?>) courseData;
+                        CourseDTO course = new CourseDTO();
+                        course.setCourseName(String.valueOf(courseMap.getOrDefault("courseName", null)));
+                        return course;
+                    })
+                    .toList();
+            college.setCourses(courseList);
+        } else {
+            college.setCourses(new ArrayList<>());
+        }
+
+        return college;
     }
 }
