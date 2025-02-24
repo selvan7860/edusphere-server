@@ -39,7 +39,12 @@
         "type": "text"
       },
       "collegeLocation": {
-        "type": "keyword"
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword"
+          }
+        }
       },
       "collegeEmail": {
         "type": "text"

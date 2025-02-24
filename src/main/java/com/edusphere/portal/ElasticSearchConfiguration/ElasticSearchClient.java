@@ -61,8 +61,8 @@ public class ElasticSearchClient {
                     if (value == null || value.isEmpty()) {
                         if ("courses.courseName".equals(field)) {
                             boolQuery.filter(QueryBuilders.matchQuery("courses.courseName", ""));
-                        } else if ("collegeLocation".equals(field)) {
-                            boolQuery.filter(QueryBuilders.matchQuery("collegeLocation", ""));
+                        } else if ("collegeLocation.keyword".equals(field)) {
+                            boolQuery.filter(QueryBuilders.matchQuery("collegeLocation.keyword", ""));
                         }
                     } else {
                         if ("courses.courseName".equals(field)) {
@@ -82,7 +82,7 @@ public class ElasticSearchClient {
             // Aggregation for location and course names
             sourceBuilder.aggregation(
                     AggregationBuilders.global("global_agg")
-                            .subAggregation(AggregationBuilders.terms("locationAgg").field("collegeLocation"))
+                            .subAggregation(AggregationBuilders.terms("locationAgg").field("collegeLocation.keyword"))
                             .subAggregation(AggregationBuilders.terms("coursesAgg")
                                     .field("courses.courseName"))
             );
