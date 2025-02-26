@@ -9,4 +9,5 @@ public class CourseDocument {
 
     private String id;
     private String courseName;
+    private String seatAvailable;
 }

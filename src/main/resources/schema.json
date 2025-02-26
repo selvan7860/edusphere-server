@@ -66,6 +66,9 @@
           },
           "courseCode": {
             "type": "keyword"
+          },
+          "seatAvailable": {
+            "type": "keyword"
           }
         }
       }

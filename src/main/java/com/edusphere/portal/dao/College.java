@@ -26,6 +26,8 @@ public class College {
     private String collegeEmail;
     private String collegePhone;
     private String collegeWebSiteLink;
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String collegeDescription;
 
     @OneToMany(mappedBy = "college", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

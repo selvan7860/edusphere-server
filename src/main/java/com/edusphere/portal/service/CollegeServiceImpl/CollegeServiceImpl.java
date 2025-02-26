@@ -79,7 +79,7 @@ public class CollegeServiceImpl implements CollegeService {
     }
 
     private CourseDTO mapToCourseDTO(Course course) {
-        return new CourseDTO(course.getId(), course.getCourseName());
+        return new CourseDTO(course.getId(), course.getCourseName(), course.getSeatAvailable());
     }
 
     @Override
@@ -102,6 +102,7 @@ public class CollegeServiceImpl implements CollegeService {
             List<Course> courses = collegeDTO.getCourses().stream().map(courseDTO -> {
                 Course course = new Course();
                 course.setCourseName(courseDTO.getCourseName());
+                course.setSeatAvailable(courseDTO.getSeatAvailable());
                 course.setCollege(college);  // Set the parent college to course
                 return course;
             }).collect(Collectors.toList());
@@ -129,6 +130,7 @@ public class CollegeServiceImpl implements CollegeService {
                 CourseDocument courseDocument = new CourseDocument();
                 courseDocument.setId(course.getId());
                 courseDocument.setCourseName(course.getCourseName());
+                courseDocument.setSeatAvailable(course.getSeatAvailable());
                 return courseDocument;
             }).collect(Collectors.toList()));
         }
@@ -152,6 +154,7 @@ public class CollegeServiceImpl implements CollegeService {
                 CourseDTO courseDTO = new CourseDTO();
                 courseDTO.setId(course.getId());
                 courseDTO.setCourseName(course.getCourseName());
+                courseDTO.setSeatAvailable(course.getSeatAvailable());
                 return courseDTO;
             }).collect(Collectors.toList()));
         }

@@ -147,6 +147,7 @@ public class ElasticSearchClient {
                         Map<?, ?> courseMap = (Map<?, ?>) courseData;
                         CourseDTO course = new CourseDTO();
                         course.setCourseName(String.valueOf(courseMap.getOrDefault("courseName", null)));
+                        course.setSeatAvailable(String.valueOf(courseMap.getOrDefault("seatAvailable", null)));
                         return course;
                     })
                     .toList();

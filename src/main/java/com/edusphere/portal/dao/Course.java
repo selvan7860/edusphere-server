@@ -17,6 +17,7 @@ public class Course {
     @GenericGenerator(name = "uuid2", strategy = "uuid2")
     private String id;
     private String courseName;
+    private String seatAvailable;
 
     @ManyToOne
     @JoinColumn(name = "college_id")
