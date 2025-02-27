@@ -82,9 +82,9 @@ public class ElasticSearchClient {
             // Aggregation for location and course names
             sourceBuilder.aggregation(
                     AggregationBuilders.global("global_agg")
-                            .subAggregation(AggregationBuilders.terms("locationAgg").field("collegeLocation.keyword"))
+                            .subAggregation(AggregationBuilders.terms("locationAgg").field("collegeLocation.keyword").size(1000))
                             .subAggregation(AggregationBuilders.terms("coursesAgg")
-                                    .field("courses.courseName"))
+                                    .field("courses.courseName").size(1000))
             );
 
             // Search request
